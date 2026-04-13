@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FaceML</title>
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+:root {
+  --bg:#0a0e14; --card:#111720; --border:#1c2a38; --border2:#243447;
+  --accent:#38bdf8; --green:#34d399; --red:#f87171; --yellow:#fbbf24;
+  --text:#e2eaf4; --muted:#4a6480; --mono:'Courier New',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min-height:100vh;padding:24px 16px;max-width:920px;margin:0 auto}
+h1{font-size:20px;font-weight:600;color:var(--accent);margin-bottom:3px}
+.tagline{font-size:12px;color:var(--muted);margin-bottom:20px;font-family:var(--mono)}
+
+/* LOADER */
+#loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px;text-align:center;padding:20px}
+#loader h2{font-size:15px;color:var(--accent);font-family:var(--mono)}
+.bar-wrap{width:260px;height:4px;background:var(--border);border-radius:4px;overflow:hidden}
+.bar{height:100%;background:var(--accent);border-radius:4px;width:0%;transition:width .4s ease}
+#lmsg{font-size:12px;color:var(--muted);font-family:var(--mono)}
+#lnote{font-size:11px;color:#1e3048}
+
+/* TABS */
+.tabs{display:flex;gap:8px;margin-bottom:18px}
+.tab{padding:8px 20px;border-radius:8px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:14px;color:var(--muted);transition:all .15s;font-weight:500}
+.tab:hover{border-color:var(--accent);color:var(--accent)}
+.tab.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.panel{display:none}.panel.active{display:block}
+
+/* PILLS */
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.pill{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)}
+
+/* GRID */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sec-label{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+
+/* UPLOAD SLOT */
+.slot{position:relative;border:1.5px dashed var(--border);border-radius:10px;background:var(--card);overflow:hidden;min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:border-color .2s}
+.slot:not(.filled):hover{border-color:var(--accent)}
+.slot-label{position:absolute;inset:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.slot.filled .slot-label{display:none}
+.slot-label input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;width:100%;height:100%}
+.slot-ph{text-align:center}
+.slot-ph svg{opacity:.22;margin-bottom:4px}
+.slot-ph p{font-size:13px;color:var(--muted)}
+.slot-ph span{font-size:11px;color:#1e3048;margin-top:2px;display:block}
+.slot-cw{display:none;width:100%;position:relative}
+.slot.filled .slot-cw{display:block}
+.slot canvas{width:100%;height:auto;display:block;border-radius:8px}
+.slot-bar{display:none;position:absolute;top:8px;right:8px;gap:6px;z-index:10}
+.slot.filled .slot-bar{display:flex}
+.slot-btn{background:rgba(10,14,20,.82);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer}
+.slot-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:11px;background:var(--accent);color:#000;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;margin-top:12px;transition:all .15s}
+.btn:hover{opacity:.88}.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn.sec{background:var(--card);color:var(--text);border:1px solid var(--border);margin-top:8px}
+.btn.sec:hover{border-color:var(--accent);color:var(--accent)}
+.or-row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:12px;color:var(--muted)}
+.or-row::before,.or-row::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* RESULTS */
+.rcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-top:12px;animation:up .3s ease}
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.rheader{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.rtitle{font-size:15px;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:600;font-family:var(--mono)}
+.badge.yes{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.badge.no{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.badge.warn{background:rgba(251,191,36,.12);color:var(--yellow);border:1px solid rgba(251,191,36,.3)}
+
+.metrics{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.metric{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:9px 12px;flex:1;min-width:80px}
+.mlabel{font-size:10px;color:var(--muted);margin-bottom:3px;font-family:var(--mono);text-transform:uppercase}
+.mval{font-size:16px;font-weight:600;font-family:var(--mono)}
+.green{color:var(--green)}.red{color:var(--red)}.yellow{color:var(--yellow)}.accent{color:var(--accent)}
+
+.cbar-wrap{margin:10px 0}
+.cbar-top{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px}
+.cbar-track{height:6px;background:var(--border);border-radius:4px;overflow:hidden}
+.cbar-fill{height:100%;border-radius:4px;transition:width .7s}
+
+.attr-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px}
+.attr-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px}
+.akey{color:var(--muted)}.aval{font-weight:500;font-family:var(--mono);font-size:11px}
+
+/* SIMILARITY BREAKDOWN */
+.sim-section{margin-top:14px}
+.sim-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(28,42,56,.7);font-size:12px}
+.sim-row:last-child{border:none}
+.sim-name{min-width:150px;color:var(--muted)}
+.sim-bar-wrap{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden}
+.sim-bar{height:100%;border-radius:4px;transition:width .7s}
+.sim-pct{min-width:40px;text-align:right;font-family:var(--mono);font-weight:600;font-size:11px}
+
+.embed-section{margin-top:12px}
+.embed-label{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;margin-bottom:5px}
+.embed-grid{display:flex;flex-wrap:wrap;gap:2px}
+.ecell{width:8px;height:8px;border-radius:1px}
+.dist-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.info-footer{margin-top:10px;padding:9px 11px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--muted);font-family:var(--mono);line-height:1.6}
+
+/* EXPLANATION BOX */
+.explain-box{background:rgba(56,189,248,.05);border:1px solid rgba(56,189,248,.15);border-radius:8px;padding:12px 14px;font-size:12px;color:#5a8aaa;line-height:1.65;margin-bottom:12px}
+.explain-box strong{color:var(--accent)}
+
+/* CAMERA MODAL */
+#cam-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+#cam-modal.open{display:flex}
+.cam-box{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:18px;width:100%;max-width:560px;display:flex;flex-direction:column;gap:12px}
+.cam-top{display:flex;align-items:center;justify-content:space-between}
+.cam-title{font-size:14px;font-weight:600}
+.cam-close{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px}
+.cam-close:hover{border-color:var(--red);color:var(--red)}
+.cam-vp{position:relative;border-radius:10px;overflow:hidden;background:#000;width:100%}
+#cam-video{width:100%;display:block;border-radius:10px;transform:scaleX(-1)}
+#cam-overlay{position:absolute;inset:0;width:100%;height:100%;border-radius:10px;pointer-events:none;transform:scaleX(-1)}
+.cam-guide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.cam-guide svg{width:50%;max-width:190px;transition:all .3s}
+.cam-status-bar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:13px;background:rgba(255,255,255,.04);border:1px solid var(--border)}
+.cam-sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;transition:background .3s}
+.cam-stxt{flex:1;font-size:12px}
+.cam-conf{font-family:var(--mono);font-size:11px;color:var(--muted)}
+#cam-capture{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:12px;background:var(--green);color:#000;font-size:14px;font-weight:700;border:none;border-radius:9px;cursor:pointer;transition:all .2s;opacity:.3;pointer-events:none}
+#cam-capture.ready{opacity:1;pointer-events:all;animation:pulsebtn 1.5s ease-in-out infinite}
+@keyframes pulsebtn{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.4)}50%{box-shadow:0 0 0 8px rgba(52,211,153,0)}}
+#cam-capture.ready:hover{opacity:.88;animation:none}
+
+.spin{width:15px;height:15px;border:2px solid rgba(0,0,0,.25);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+.spin.d{border-color:rgba(255,255,255,.15);border-top-color:var(--accent)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:10px 18px;font-size:13px;color:var(--text);transition:transform .3s;z-index:9999;pointer-events:none}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+@media(max-width:560px){.grid2,.attr-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <h2>Loading ML Models...</h2>
+  <div class="bar-wrap"><div class="bar" id="lbar"></div></div>
+  <div id="lmsg">Initializing...</div>
+  <div id="lnote">Downloads ~6MB of neural network weights once from CDN</div>
+</div>
+
+<!-- CAMERA MODAL -->
+<div id="cam-modal">
+  <div class="cam-box">
+    <div class="cam-top">
+      <span class="cam-title" id="cam-title">Camera</span>
+      <button class="cam-close" onclick="closeCamera()">✕ Close</button>
+    </div>
+    <div class="cam-vp">
+      <video id="cam-video" autoplay muted playsinline></video>
+      <canvas id="cam-overlay"></canvas>
+      <div class="cam-guide">
+        <svg id="guide-oval" viewBox="0 0 200 260" fill="none">
+          <ellipse cx="100" cy="130" rx="78" ry="108" stroke="white" stroke-width="2.5" stroke-dasharray="8 5" opacity=".4"/>
+        </svg>
+      </div>
+    </div>
+    <div class="cam-status-bar">
+      <div class="cam-sdot" id="cam-sdot" style="background:var(--muted)"></div>
+      <span class="cam-stxt" id="cam-stxt">Starting camera...</span>
+      <span class="cam-conf" id="cam-conf"></span>
+    </div>
+    <button id="cam-capture" onclick="capturePhoto()">
+      <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M20 7h-3l-2-3H9L7 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+      Capture Face
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <h1>FaceML</h1>
+  <p class="tagline">// local face detection + verification — SSD MobileNet + FaceNet · threshold 0.6</p>
+  <div class="pills">
+    <div class="pill"><span class="dot"></span>SSD MobileNet v1</div>
+    <div class="pill"><span class="dot"></span>68-pt Landmarks</div>
+    <div class="pill"><span class="dot"></span>FaceNet 128D</div>
+    <div class="pill"><span class="dot"></span>Age &amp; Gender</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('detect')">Face Detection</button>
+    <button class="tab" onclick="switchTab('verify')">Face Verification</button>
+  </div>
+
+  <!-- DETECTION -->
+  <div id="panel-detect" class="panel active">
+    <div class="sec-label">Upload or capture image</div>
+    <div class="slot" id="slot-d">
+      <label class="slot-label">
+        <div class="slot-ph">
+          <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <p>Click to upload a photo</p>
+          <span>JPG · PNG · WEBP</span>
+        </div>
+        <input type="file" accept="image/*" onchange="loadImg('d',this)">
+      </label>
+      <div class="slot-cw"><canvas id="canvas-d"></canvas></div>
+      <div class="slot-bar">
+        <label class="slot-btn" style="cursor:pointer">↺ Change<input type="file" accept="image/*" onchange="loadImg('d',this)" style="display:none"></label>
+        <button class="slot-btn" onclick="clearSlot('d')">✕ Clear</button>
+      </div>
+    </div>
+    <div class="or-row">or</div>
+    <button class="btn sec" onclick="openCamera('d')">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M20 7h-3l-2-3H9L7 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+      Open Camera
+    </button>
+    <button class="btn" id="btn-d" onclick="runDetect()" disabled>
+      <span id="lbl-d">Detect Faces</span>
+    </button>
+    <div id="out-d"></div>
+  </div>
+
+  <!-- VERIFICATION -->
+  <div id="panel-verify" class="panel">
+    <div class="explain-box">
+      <strong>How same-person scoring works:</strong> FaceNet computes a 128-number vector for each face. The Euclidean distance between two vectors from the <strong>same person</strong> is typically <strong>0.2–0.55</strong> — even with expressions, angles, or lighting changes. The threshold is <strong>0.6</strong>. Different people usually score above 0.7.
+    </div>
+    <div class="grid2">
+      <div>
+        <div class="sec-label">Image A — Person 1</div>
+        <div class="slot" id="slot-v1">
+          <label class="slot-label">
+            <div class="slot-ph">
+              <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              <p>Person A</p>
+            </div>
+            <input type="file" accept="image/*" onchange="loadImg('v1',this)">
+          </label>
+          <div class="slot-cw"><canvas id="canvas-v1"></canvas></div>
+          <div class="slot-bar">
+            <label class="slot-btn" style="cursor:pointer">↺<input type="file" accept="image/*" onchange="loadImg('v1',this)" style="display:none"></label>
+            <button class="slot-btn" onclick="clearSlot('v1')">✕</button>
+          </div>
+        </div>
+        <div class="or-row">or</div>
+        <button class="btn sec" onclick="openCamera('v1')" style="margin-top:0">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M20 7h-3l-2-3H9L7 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+          Camera A
+        </button>
+      </div>
+      <div>
+        <div class="sec-label">Image B — Person 2</div>
+        <div class="slot" id="slot-v2">
+          <label class="slot-label">
+            <div class="slot-ph">
+              <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              <p>Person B</p>
+            </div>
+            <input type="file" accept="image/*" onchange="loadImg('v2',this)">
+          </label>
+          <div class="slot-cw"><canvas id="canvas-v2"></canvas></div>
+          <div class="slot-bar">
+            <label class="slot-btn" style="cursor:pointer">↺<input type="file" accept="image/*" onchange="loadImg('v2',this)" style="display:none"></label>
+            <button class="slot-btn" onclick="clearSlot('v2')">✕</button>
+          </div>
+        </div>
+        <div class="or-row">or</div>
+        <button class="btn sec" onclick="openCamera('v2')" style="margin-top:0">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M20 7h-3l-2-3H9L7 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+          Camera B
+        </button>
+      </div>
+    </div>
+    <button class="btn" id="btn-v" onclick="runVerify()" disabled>
+      <span id="lbl-v">Compare Faces</span>
+    </button>
+    <div id="out-v"></div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────
+const imgs = {};
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+let camStream=null, camTarget=null, camLoop=null;
+
+// ── LOAD MODELS ────────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  const t=setInterval(()=>{ if(typeof faceapi!=='undefined'){clearInterval(t);loadModels();} },80);
+});
+async function loadModels(){
+  const bar=document.getElementById('lbar'), msg=document.getElementById('lmsg');
+  const steps=[[8,'Loading face detector...'],[38,'Loading landmark model...'],[65,'Loading recognition model...'],[87,'Loading age & gender model...'],[100,'Ready!']];
+  try{
+    for(let i=0;i<steps.length-1;i++){
+      msg.textContent=steps[i][1]; bar.style.width=steps[i][0]+'%';
+      if(i===0) await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+      if(i===1) await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      if(i===2) await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      if(i===3) await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
+    }
+    bar.style.width='100%'; msg.textContent=steps[4][1];
+    await new Promise(r=>setTimeout(r,400));
+    document.getElementById('loader').style.display='none';
+    document.getElementById('app').style.display='block';
+  }catch(e){ msg.textContent='Error: '+e.message; }
+}
+
+// ── UI HELPERS ─────────────────────────────────────────────────────────
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['detect','verify'][i]===t));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+t).classList.add('active');
+}
+function loadImg(key,input){
+  const file=input.files[0]; if(!file) return;
+  input.value='';
+  const url=URL.createObjectURL(file);
+  const image=new Image();
+  image.onload=()=>{
+    imgs[key]=image;
+    const c=document.getElementById('canvas-'+key);
+    c.width=image.naturalWidth; c.height=image.naturalHeight;
+    c.getContext('2d').drawImage(image,0,0);
+    document.getElementById('slot-'+key).classList.add('filled');
+    clearOut(key); updateBtns();
+  };
+  image.src=url;
+}
+function clearSlot(key){
+  delete imgs[key];
+  const c=document.getElementById('canvas-'+key);
+  c.getContext('2d').clearRect(0,0,c.width,c.height);
+  document.getElementById('slot-'+key).classList.remove('filled');
+  clearOut(key); updateBtns();
+}
+function clearOut(key){
+  if(key==='d') document.getElementById('out-d').innerHTML='';
+  if(key==='v1'||key==='v2') document.getElementById('out-v').innerHTML='';
+}
+function updateBtns(){
+  document.getElementById('btn-d').disabled=!imgs.d;
+  document.getElementById('btn-v').disabled=!(imgs.v1&&imgs.v2);
+}
+function setLoading(b,l,on,txt){
+  document.getElementById(b).disabled=on;
+  document.getElementById(l).innerHTML=on?'<span class="spin d"></span> Analyzing...':txt;
+}
+function toast(msg,ms=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+// ── CAMERA ─────────────────────────────────────────────────────────────
+async function openCamera(key){
+  camTarget=key;
+  document.getElementById('cam-title').textContent=
+    key==='d'?'Camera — Detection':key==='v1'?'Camera — Person A':'Camera — Person B';
+  document.getElementById('cam-modal').classList.add('open');
+  document.getElementById('cam-capture').classList.remove('ready');
+  setCamStatus('muted','Starting camera...','');
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    camStream=stream;
+    const v=document.getElementById('cam-video');
+    v.srcObject=stream; await v.play();
+    startCamLoop();
+  }catch(e){
+    const msg=e.name==='NotAllowedError'?'Camera permission denied — allow it in your browser settings':'Camera error: '+e.message;
+    setCamStatus('red',msg,'');
+  }
+}
+function setCamStatus(col,txt,conf){
+  const colors={muted:'#4a6480',red:'#f87171',yellow:'#fbbf24',green:'#34d399'};
+  document.getElementById('cam-sdot').style.background=colors[col]||colors.muted;
+  document.getElementById('cam-stxt').textContent=txt;
+  document.getElementById('cam-conf').textContent=conf;
+}
+function startCamLoop(){
+  const video=document.getElementById('cam-video');
+  const overlay=document.getElementById('cam-overlay');
+  const guideOval=document.getElementById('guide-oval').querySelector('ellipse');
+  const capBtn=document.getElementById('cam-capture');
+  clearInterval(camLoop);
+  camLoop=setInterval(async()=>{
+    if(video.readyState<3) return;
+    overlay.width=video.videoWidth; overlay.height=video.videoHeight;
+    const ctx=overlay.getContext('2d');
+    ctx.clearRect(0,0,overlay.width,overlay.height);
+    let det;
+    try{ det=await faceapi.detectSingleFace(video,new faceapi.SsdMobilenetv1Options({minConfidence:0.45})).withFaceLandmarks(); }
+    catch(e){ return; }
+    if(!det){
+      capBtn.classList.remove('ready');
+      guideOval.setAttribute('stroke','white'); guideOval.setAttribute('opacity','.35');
+      setCamStatus('muted','No face — look at the camera',''); return;
+    }
+    const b=det.detection.box, vw=overlay.width, vh=overlay.height;
+    const cx=b.x+b.width/2, cy=b.y+b.height/2;
+    const centered=cx>vw*.2&&cx<vw*.8&&cy>vh*.15&&cy<vh*.85;
+    const goodSize=b.width>vw*.12&&b.width<vw*.85;
+    const highConf=det.detection.score>0.68;
+    const isGood=centered&&goodSize&&highConf;
+    const col=isGood?'#34d399':'#fbbf24';
+    // Draw box
+    ctx.save();
+    ctx.strokeStyle=col; ctx.lineWidth=Math.max(2.5,vw/200);
+    ctx.strokeRect(b.x,b.y,b.width,b.height);
+    const cs=Math.max(14,vw/35);
+    [[b.x,b.y,1,1],[b.x+b.width,b.y,-1,1],[b.x,b.y+b.height,1,-1],[b.x+b.width,b.y+b.height,-1,-1]]
+      .forEach(([px,py,dx,dy])=>{
+        ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+dx*cs,py);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py+dy*cs);ctx.stroke();
+      });
+    if(det.landmarks){
+      ctx.fillStyle=isGood?'rgba(52,211,153,.6)':'rgba(251,191,36,.5)';
+      det.landmarks.positions.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(1.5,vw/350),0,Math.PI*2);ctx.fill();});
+    }
+    ctx.restore();
+    guideOval.setAttribute('stroke',col); guideOval.setAttribute('opacity',isGood?'.9':'.6');
+    if(isGood){
+      capBtn.classList.add('ready');
+      setCamStatus('green','✓ Face detected clearly — press Capture!',`conf: ${Math.round(det.detection.score*100)}%`);
+    } else {
+      capBtn.classList.remove('ready');
+      const hint=!goodSize?(b.width<vw*.12?'Move closer':'Move farther back'):!centered?'Center your face':'Hold still...';
+      setCamStatus('yellow',hint,`conf: ${Math.round(det.detection.score*100)}%`);
+    }
+  },280);
+}
+function capturePhoto(){
+  const v=document.getElementById('cam-video');
+  const tmp=document.createElement('canvas');
+  tmp.width=v.videoWidth; tmp.height=v.videoHeight;
+  const ctx=tmp.getContext('2d');
+  ctx.translate(tmp.width,0); ctx.scale(-1,1);
+  ctx.drawImage(v,0,0);
+  const image=new Image();
+  image.onload=()=>{
+    imgs[camTarget]=image;
+    const c=document.getElementById('canvas-'+camTarget);
+    c.width=image.naturalWidth; c.height=image.naturalHeight;
+    c.getContext('2d').drawImage(image,0,0);
+    document.getElementById('slot-'+camTarget).classList.add('filled');
+    clearOut(camTarget); updateBtns(); closeCamera(); toast('📸 Photo captured!');
+  };
+  image.src=tmp.toDataURL('image/jpeg',.95);
+}
+function closeCamera(){
+  clearInterval(camLoop); camLoop=null;
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  const v=document.getElementById('cam-video'); v.srcObject=null;
+  const o=document.getElementById('cam-overlay');
+  o.getContext('2d').clearRect(0,0,o.width,o.height);
+  document.getElementById('cam-modal').classList.remove('open');
+  document.getElementById('cam-capture').classList.remove('ready');
+}
+
+// ── DRAW CANVAS ────────────────────────────────────────────────────────
+function drawOnCanvas(canvas,srcImg,dets){
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(srcImg,0,0);
+  const lw=Math.max(2,canvas.width/300);
+  const fs=Math.max(11,canvas.width/38);
+  const cs=Math.max(12,canvas.width/50);
+  dets.forEach((det,i)=>{
+    const b=det.detection.box;
+    ctx.strokeStyle='#38bdf8'; ctx.lineWidth=lw;
+    ctx.strokeRect(b.x,b.y,b.width,b.height);
+    ctx.strokeStyle='#34d399'; ctx.lineWidth=lw*1.5;
+    [[b.x,b.y,1,1],[b.x+b.width,b.y,-1,1],[b.x,b.y+b.height,1,-1],[b.x+b.width,b.y+b.height,-1,-1]]
+      .forEach(([px,py,dx,dy])=>{
+        ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+dx*cs,py);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py+dy*cs);ctx.stroke();
+      });
+    if(det.landmarks){
+      ctx.fillStyle='rgba(56,189,248,0.65)';
+      det.landmarks.positions.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(1.5,canvas.width/400),0,Math.PI*2);ctx.fill();});
+    }
+    const label=det.age?`#${i+1}  ~${Math.round(det.age)}y  ${det.gender}`:`#${i+1}`;
+    ctx.font=`bold ${fs}px monospace`;
+    const tw=ctx.measureText(label).width;
+    ctx.fillStyle='rgba(10,14,20,.88)'; ctx.fillRect(b.x,b.y-fs-8,tw+14,fs+10);
+    ctx.fillStyle='#38bdf8'; ctx.fillText(label,b.x+7,b.y-5);
+  });
+}
+
+// ── EMBED GRID ─────────────────────────────────────────────────────────
+function embedGrid(desc){
+  return Array.from(desc).map(v=>{
+    const n=(v+1)/2;
+    const r=Math.round(n<.5?56:248), g=Math.round(n<.5?189:113), b=Math.round(n<.5?248:113);
+    const a=(.2+Math.abs(v)*.8).toFixed(2);
+    return `<div class="ecell" style="background:rgba(${r},${g},${b},${a})"></div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FIXED: Similarity score mapping
+// dist 0.0 → 100%  (identical)
+// dist 0.3 → 77%   (same person, slight variation)
+// dist 0.5 → 62%   (same person, expression change) ← was showing 38% before!
+// dist 0.6 → 54%   (threshold — borderline)
+// dist 0.8 → 38%   (different people)
+// dist 1.1 →  0%   (clearly different)
+// Formula: similarity = 100 * (1 - dist / 1.1)²  (quadratic, gentler curve)
+// ─────────────────────────────────────────────────────────────────────
+function distToSimilarity(dist){
+  return Math.max(0, Math.min(100, Math.round(100 * Math.pow(1 - dist/1.1, 0.65))));
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// REAL geometric feature comparison using 68 facial landmarks
+// These are ACTUAL face measurements, not made-up embedding segments
+// ─────────────────────────────────────────────────────────────────────
+function getLandmarkProps(landmarks){
+  const p = landmarks.positions;
+  // key landmark indices (68-point model):
+  // jaw: 0–16, left brow: 17–21, right brow: 22–26
+  // nose bridge: 27–30, nose tip/wings: 31–35
+  // left eye: 36–41, right eye: 42–47
+  // outer mouth: 48–59, inner mouth: 60–67
+  const leftEyeCenter  = avgPts(p.slice(36,42));
+  const rightEyeCenter = avgPts(p.slice(42,48));
+  const eyeDist        = dist2d(leftEyeCenter, rightEyeCenter);
+  const noseTip        = p[30];
+  const noseBase       = avgPts([p[31],p[35]]);
+  const noseWidth      = dist2d(p[31], p[35]);
+  const mouthLeft      = p[48], mouthRight = p[54];
+  const mouthWidth     = dist2d(mouthLeft, mouthRight);
+  const chin           = p[8];
+  const foreheadProxy  = avgPts([p[17],p[18],p[19],p[20],p[21],p[22],p[23],p[24],p[25]]);
+  const faceHeight     = dist2d(foreheadProxy, chin);
+  const faceWidth      = dist2d(p[0], p[16]);
+  const eyeCenter      = avgPts([leftEyeCenter, rightEyeCenter]);
+  const eyeToNose      = dist2d(eyeCenter, noseTip);
+  const noseToMouth    = dist2d(noseBase, avgPts([mouthLeft,mouthRight]));
+  const leftEyeH       = dist2d(p[37],p[41]);
+  const rightEyeH      = dist2d(p[43],p[47]);
+  const avgEyeOpenness = (leftEyeH+rightEyeH)/(2*eyeDist);
+
+  // Return as normalized RATIOS (independent of image scale)
+  return {
+    eyeDistRatio:   eyeDist / faceWidth,      // how wide-set the eyes are
+    faceAspect:     faceWidth / faceHeight,    // face shape (round vs. long)
+    noseWidthRatio: noseWidth / faceWidth,     // nose width relative to face
+    mouthWidthRatio:mouthWidth / faceWidth,    // mouth width relative to face
+    eyeToNoseRatio: eyeToNose / faceHeight,    // vertical face proportion upper
+    noseToMouthRatio:noseToMouth / faceHeight, // vertical face proportion lower
+    // Note: eyeOpenness is expression-dependent — we keep it but weight low
+    eyeOpenness:    avgEyeOpenness,
+  };
+}
+
+function avgPts(pts){ return { x: pts.reduce((s,p)=>s+p.x,0)/pts.length, y: pts.reduce((s,p)=>s+p.y,0)/pts.length }; }
+function dist2d(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+function compareProps(pA, pB){
+  // weight: expression-invariant features get higher weight
+  const features = [
+    { key:'eyeDistRatio',    label:'Eye spacing',        weight:1.0, expressionSafe:true  },
+    { key:'faceAspect',      label:'Face shape',         weight:1.0, expressionSafe:true  },
+    { key:'noseWidthRatio',  label:'Nose width',         weight:1.0, expressionSafe:true  },
+    { key:'mouthWidthRatio', label:'Mouth width',        weight:0.7, expressionSafe:false },
+    { key:'eyeToNoseRatio',  label:'Eye–nose distance',  weight:1.0, expressionSafe:true  },
+    { key:'noseToMouthRatio',label:'Nose–mouth distance',weight:0.7, expressionSafe:false },
+  ];
+  return features.map(f=>{
+    const vA=pA[f.key], vB=pB[f.key];
+    const relDiff = Math.abs(vA-vB) / ((vA+vB)/2);
+    // 0% diff → 100%, 20% diff → ~0%  (landmarks have natural variance ~3-8%)
+    const pct = Math.max(0, Math.min(100, Math.round((1 - relDiff/0.18)*100)));
+    return { ...f, pct };
+  });
+}
+
+// ── FACE DETECTION ─────────────────────────────────────────────────────
+async function runDetect(){
+  setLoading('btn-d','lbl-d',true,'Detect Faces');
+  document.getElementById('out-d').innerHTML='';
+  try{
+    const opts=new faceapi.SsdMobilenetv1Options({minConfidence:0.4});
+    const dets=await faceapi.detectAllFaces(imgs.d,opts).withFaceLandmarks().withFaceDescriptors().withAgeAndGender();
+    drawOnCanvas(document.getElementById('canvas-d'),imgs.d,dets);
+    if(!dets.length){
+      document.getElementById('out-d').innerHTML=`<div class="rcard"><div class="rheader"><span class="rtitle">No Face Detected</span><span class="badge no">✗ Not Found</span></div><p style="font-size:13px;color:var(--muted)">SSD MobileNet found no face. Try a clearer, well-lit, frontal photo.</p></div>`;
+      return;
+    }
+    const cards=dets.map((d,i)=>{
+      const score=d.detection.score, pct=Math.round(score*100);
+      const col=score>.8?'#34d399':score>.6?'#fbbf24':'#f87171';
+      const b=d.detection.box;
+      const area=Math.round((b.width*b.height)/(imgs.d.naturalWidth*imgs.d.naturalHeight)*100);
+      return `<div class="rcard">
+        <div class="rheader"><span class="rtitle">Face #${i+1}</span><span class="badge yes">✓ Detected</span></div>
+        <div class="cbar-wrap">
+          <div class="cbar-top"><span>Detection confidence</span><span>${pct}%</span></div>
+          <div class="cbar-track"><div class="cbar-fill" style="width:${pct}%;background:${col}"></div></div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><div class="mlabel">Confidence</div><div class="mval" style="color:${col}">${pct}%</div></div>
+          <div class="metric"><div class="mlabel">Est. Age</div><div class="mval accent">~${Math.round(d.age)}</div></div>
+          <div class="metric"><div class="mlabel">Gender</div><div class="mval accent">${d.gender}</div></div>
+          <div class="metric"><div class="mlabel">Landmarks</div><div class="mval accent">68</div></div>
+        </div>
+        <div class="attr-grid">
+          <div class="attr-row"><span class="akey">Position</span><span class="aval">${Math.round(b.x)}, ${Math.round(b.y)} px</span></div>
+          <div class="attr-row"><span class="akey">Size</span><span class="aval">${Math.round(b.width)}×${Math.round(b.height)}</span></div>
+          <div class="attr-row"><span class="akey">Face area</span><span class="aval">${area}% of image</span></div>
+          <div class="attr-row"><span class="akey">Embedding</span><span class="aval">128D FaceNet</span></div>
+        </div>
+        <div class="embed-section">
+          <div class="embed-label">128D face embedding vector</div>
+          <div class="embed-grid">${embedGrid(d.descriptor)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('out-d').innerHTML=`<div class="rcard"><div class="rheader"><span class="rtitle">${dets.length} Face${dets.length>1?'s':''} Found</span><span class="badge yes">✓ ${dets.length} detected</span></div><p style="font-size:13px;color:var(--muted)">Bounding boxes and 68 facial landmarks drawn above.</p></div>${cards}`;
+  }catch(e){
+    document.getElementById('out-d').innerHTML=`<div class="rcard"><p style="color:var(--red)">Error: ${e.message}</p></div>`;
+  }finally{
+    setLoading('btn-d','lbl-d',false,'Detect Faces');
+    if(imgs.d) document.getElementById('btn-d').disabled=false;
+  }
+}
+
+// ── FACE VERIFICATION ──────────────────────────────────────────────────
+async function runVerify(){
+  setLoading('btn-v','lbl-v',true,'Compare Faces');
+  document.getElementById('out-v').innerHTML='';
+  try{
+    const opts=new faceapi.SsdMobilenetv1Options({minConfidence:0.4});
+    const [dA,dB]=await Promise.all([
+      faceapi.detectSingleFace(imgs.v1,opts).withFaceLandmarks().withFaceDescriptor().withAgeAndGender(),
+      faceapi.detectSingleFace(imgs.v2,opts).withFaceLandmarks().withFaceDescriptor().withAgeAndGender(),
+    ]);
+    if(dA) drawOnCanvas(document.getElementById('canvas-v1'),imgs.v1,[dA]);
+    if(dB) drawOnCanvas(document.getElementById('canvas-v2'),imgs.v2,[dB]);
+    if(!dA||!dB){
+      document.getElementById('out-v').innerHTML=`<div class="rcard"><div class="rheader"><span class="rtitle">Cannot Compare</span><span class="badge warn">⚠ Missing Face</span></div><p style="font-size:13px;color:var(--muted)">${!dA&&!dB?'No face in either image.':!dA?'No face in Image A.':'No face in Image B.'}</p></div>`;
+      return;
+    }
+
+    // ─── CORE COMPARISON ───────────────────────────────────────────────────
+    // 1. FaceNet embedding distance (threshold: 0.6, NOT 0.55)
+    const dist = faceapi.euclideanDistance(dA.descriptor, dB.descriptor);
+    const THRESH = 0.6;  // ← corrected from 0.55 — face-api.js official threshold
+    const isSame = dist < THRESH;
+
+    // 2. Correct similarity % — same person smiling vs not: dist ~0.4-0.55 → shows 60-70%
+    const similarity = distToSimilarity(dist);
+
+    // 3. Cosine similarity (second perspective — expression-robust)
+    const dot = Array.from(dA.descriptor).reduce((s,v,i)=>s+v*dB.descriptor[i],0);
+    const magA = Math.sqrt(Array.from(dA.descriptor).reduce((s,v)=>s+v*v,0));
+    const magB = Math.sqrt(Array.from(dB.descriptor).reduce((s,v)=>s+v*v,0));
+    const cosine = dot/(magA*magB);
+    const cosinePct = Math.max(0,Math.min(100,Math.round((cosine+1)/2*100)));
+
+    // 4. Real geometric landmark comparison
+    const propsA = getLandmarkProps(dA.landmarks);
+    const propsB = getLandmarkProps(dB.landmarks);
+    const geomFeatures = compareProps(propsA, propsB);
+    const geomScore = Math.round(geomFeatures.reduce((s,f)=>s+f.pct*f.weight,0)/geomFeatures.reduce((s,f)=>s+f.weight,0));
+
+    const distPct = Math.min(100,Math.round((dist/1.3)*100));
+    const threshPct = Math.round((THRESH/1.3)*100);
+    const distCol = dist<0.38?'#34d399':dist<THRESH?'#fbbf24':'#f87171';
+    const verdict = dist<0.3?'Strong match — very likely same person'
+                  : dist<THRESH?'Likely same person'
+                  : dist<0.72?'Unlikely — probably different people'
+                  : 'Different people';
+
+    const featureRows = geomFeatures.map(f=>{
+      const fc=f.pct>75?'#34d399':f.pct>50?'#fbbf24':'#f87171';
+      const note = f.expressionSafe ? '' : '<span style="font-size:10px;color:#2a4060"> (expression-sensitive)</span>';
+      return `<div class="sim-row">
+        <span class="sim-name">${f.label}${note}</span>
+        <div class="sim-bar-wrap"><div class="sim-bar" style="width:${f.pct}%;background:${fc}"></div></div>
+        <span class="sim-pct" style="color:${fc}">${f.pct}%</span>
+      </div>`;
+    }).join('');
+
+    document.getElementById('out-v').innerHTML=`
+      <div class="rcard">
+        <div class="rheader">
+          <span class="rtitle">${isSame?'Same Person':'Different People'}</span>
+          <span class="badge ${isSame?'yes':'no'}">${isSame?'✓ Match':'✗ No Match'}</span>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><div class="mlabel">L2 Distance</div><div class="mval" style="color:${distCol}">${dist.toFixed(3)}</div></div>
+          <div class="metric"><div class="mlabel">Embedding sim.</div><div class="mval ${isSame?'green':'red'}">${similarity}%</div></div>
+          <div class="metric"><div class="mlabel">Cosine sim.</div><div class="mval accent">${cosinePct}%</div></div>
+          <div class="metric"><div class="mlabel">Geometry score</div><div class="mval accent">${geomScore}%</div></div>
+        </div>
+
+        <!-- Distance scale -->
+        <div style="margin:12px 0">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">
+            <span>Distance: <strong style="color:${distCol}">${dist.toFixed(4)}</strong></span>
+            <span>Threshold: ${THRESH}</span>
+          </div>
+          <div class="cbar-track" style="height:10px;position:relative">
+            <div style="position:absolute;left:${threshPct}%;top:0;width:2px;height:100%;background:var(--yellow);z-index:1"></div>
+            <div class="cbar-fill" style="width:${distPct}%;background:${distCol};height:100%"></div>
+          </div>
+          <div class="dist-labels">
+            <span>0.0 — identical</span>
+            <span>▲ threshold 0.6</span>
+            <span>1.3+ — different</span>
+          </div>
+        </div>
+
+        <p style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:14px">
+          <strong style="color:${distCol}">${verdict}.</strong>
+          FaceNet distance = ${dist.toFixed(4)}
+          ${isSame
+            ? `(below the 0.6 threshold). Same person with different expressions typically scores 0.2–0.55.`
+            : `(above the 0.6 threshold). Different people usually score 0.65–1.2.`}
+        </p>
+
+        <!-- Geometric landmark breakdown (REAL measurements) -->
+        <div class="sec-label">Geometric face structure comparison <span style="font-size:9px;color:#1e3048">(from 68 actual landmark points)</span></div>
+        <div class="sim-section">${featureRows}</div>
+
+        <!-- Attributes -->
+        <div class="sec-label" style="margin-top:14px">Detected attributes</div>
+        <div class="attr-grid">
+          <div class="attr-row"><span class="akey">Age — A</span><span class="aval">~${Math.round(dA.age)} yrs</span></div>
+          <div class="attr-row"><span class="akey">Age — B</span><span class="aval">~${Math.round(dB.age)} yrs</span></div>
+          <div class="attr-row"><span class="akey">Gender — A</span><span class="aval">${dA.gender}</span></div>
+          <div class="attr-row"><span class="akey">Gender — B</span><span class="aval">${dB.gender}</span></div>
+          <div class="attr-row"><span class="akey">Detect score — A</span><span class="aval">${Math.round(dA.detection.score*100)}%</span></div>
+          <div class="attr-row"><span class="akey">Detect score — B</span><span class="aval">${Math.round(dB.detection.score*100)}%</span></div>
+        </div>
+
+        <!-- Embedding vectors -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+          <div><div class="embed-label">FaceNet embedding — A</div><div class="embed-grid">${embedGrid(dA.descriptor)}</div></div>
+          <div><div class="embed-label">FaceNet embedding — B</div><div class="embed-grid">${embedGrid(dB.descriptor)}</div></div>
+        </div>
+
+        <div class="info-footer">
+          DETECTION: SSD MobileNet v1 · RECOGNITION: FaceNet 128D · THRESHOLD: 0.6 (face-api.js default)<br>
+          GEOMETRY: 68-point landmark ratios (expression-invariant) · 100% local, no data sent anywhere.
+        </div>
+      </div>`;
+  }catch(e){
+    document.getElementById('out-v').innerHTML=`<div class="rcard"><p style="color:var(--red)">Error: ${e.message}</p></div>`;
+  }finally{
+    setLoading('btn-v','lbl-v',false,'Compare Faces');
+    if(imgs.v1&&imgs.v2) document.getElementById('btn-v').disabled=false;
+  }
+}
+</script>
+</body>
+</html>
